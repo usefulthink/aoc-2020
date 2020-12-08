@@ -25,38 +25,37 @@ const input = fs.readFileSync(`${__dirname}/input.txt`, 'utf8');
 // lets throw away some noise we dont need for parsing and split into rules
 const lines = input.replace(/ *bags?\.? */g, '').split('\n');
 
-// now parse the rules into an array of objects
-/** @type {Array<{id: string, contents: Array<{count: number, id: string}>}>} */
-const rules = lines.map(function (line) {
-  const [id, childsStr] = line.split(/\s*contain\s*/);
-  const childs = childsStr
-    .split(/\s*,\s*/)
-    .filter(s => s !== 'no other')
-    .map(s => {
-      if (s === 'no other') {
-        return {};
-      }
-      const [, count, id] = s.match(/^(\d+) +(.*)$/);
+// now parse the rules a map of objects
+/** @type {Object<id, {id: string, contents: Array<{count: number, id: string}>}>} */
+const rules = Object.fromEntries(
+  lines.map(function (line) {
+    const [id, contentsStr] = line.split(/\s*contain\s*/);
+    const contents = contentsStr
+      .split(/\s*,\s*/)
+      .filter(s => s !== 'no other')
+      .map(s => {
+        const [, count, id] = s.match(/^(\d+) +(.*)$/);
 
-      return {count: Number(count), id};
-    });
+        return {count: Number(count), id};
+      });
 
-  return {id, contents: childs};
-});
+    return [id, {id, contents}];
+  })
+);
 
 // ...and find my bag
-const myBag = rules.find(bag => bag.id === 'shiny gold');
+const myBag = rules['shiny gold'];
 
 // part 1: how many bags can contain my shiny gold one?
-function* linearizeOuterBagIds(node) {
-  yield node.id;
+function* linearizeOuterBagIds(rule) {
+  yield rule.id;
 
-  const parents = rules.filter(parent =>
-    parent.contents.some(pc => pc.id === node.id)
+  const outerBags = Object.values(rules).filter(parent =>
+    parent.contents.some(pc => pc.id === rule.id)
   );
 
-  for (let p of parents) {
-    yield* linearizeOuterBagIds(p);
+  for (let outerBag of outerBags) {
+    yield* linearizeOuterBagIds(outerBag);
   }
 }
 
@@ -67,20 +66,18 @@ console.log(
 
 // part 2: summarize the number of bags required within my shiny golden one
 /** @return Iterator<number> */
-function* linearizeContainedBagCount(node, multiplier = 1) {
-  for (let {count, id} of node.contents) {
+function* linearizeContainedBagCount(rule, multiplier = 1) {
+  for (let {count, id} of rule.contents) {
     const totalCount = multiplier * count;
 
     yield totalCount;
-    yield* linearizeContainedBagCount(
-      rules.find(c => c.id === id),
-      totalCount
-    );
+    yield* linearizeContainedBagCount(rules[id], totalCount);
   }
 }
 
+const grandTotal = [...linearizeContainedBagCount(myBag)].reduce(
+  (a, b) => a + b
+);
 console.log(
-  chalk`{green in my shiny bag there are a total of {blue ${[
-    ...linearizeContainedBagCount(myBag)
-  ].reduce((a, b) => a + b)}} other bags}`
+  chalk`{green in my shiny bag there are a total of {blue ${grandTotal}} other bags}`
 );
