@@ -20,8 +20,11 @@ const fs = require('fs');
 // dark green bags contain 2 dark blue bags.
 // dark blue bags contain 2 dark violet bags.
 // dark violet bags contain no other bags.`
-
+console.time('all');
+console.time('read file');
 const input = fs.readFileSync(`${__dirname}/input.txt`, 'utf8');
+console.timeEnd('read file');
+console.time('parse');
 // lets throw away some noise we dont need for parsing and split into rules
 const lines = input.replace(/ *bags?\.? */g, '').split('\n');
 
@@ -46,15 +49,23 @@ const rules = Object.fromEntries(
 // ...and find my bag
 const myBag = rules['shiny gold'];
 
+for (let rule of Object.values(rules)) {
+  rule.parents = Object.values(rules).filter(parent =>
+    parent.contents.some(pc => pc.id === rule.id)
+  );
+}
+console.timeEnd('parse');
+
 // part 1: how many bags can contain my shiny gold one?
+console.time('part 1')
 function* linearizeOuterBagIds(rule) {
   yield rule.id;
 
-  const outerBags = Object.values(rules).filter(parent =>
-    parent.contents.some(pc => pc.id === rule.id)
-  );
+  // const outerBags = Object.values(rules).filter(parent =>
+  //   parent.contents.some(pc => pc.id === rule.id)
+  // );
 
-  for (let outerBag of outerBags) {
+  for (let outerBag of rule.parents) {
     yield* linearizeOuterBagIds(outerBag);
   }
 }
@@ -63,8 +74,9 @@ const outerBagCount = new Set(linearizeOuterBagIds(myBag)).size - 1;
 console.log(
   chalk`{green there are {blue ${outerBagCount}} different types of bags that could contain my golden one}`
 );
-
+console.timeEnd('part 1')
 // part 2: summarize the number of bags required within my shiny golden one
+console.time('part 2')
 /** @return Iterator<number> */
 function* linearizeContainedBagCount(rule, multiplier = 1) {
   for (let {count, id} of rule.contents) {
@@ -81,3 +93,5 @@ const grandTotal = [...linearizeContainedBagCount(myBag)].reduce(
 console.log(
   chalk`{green in my shiny bag there are a total of {blue ${grandTotal}} other bags}`
 );
+console.timeEnd('part 2')
+console.timeEnd('all');
